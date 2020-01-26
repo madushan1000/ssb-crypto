@@ -10,6 +10,14 @@ documentation = "https://docs.rs/ssb-crypto/"
 readme = "README.md"
 keywords = ["ssb", "scuttlebutt", "crypto"]
 
+[lib]
+crate-type = ["cdylib"]
+
 [dependencies]
-libsodium-sys = "~0.2.5"
-sodiumoxide = "~0.2.5"
+js-sys = "0.3.35"
+wasm-bindgen-futures = "0.4.8"
+wasm-bindgen = { version = "0.2.58", features = ["nightly"] }
+wee_alloc = { version = "0.4.2", optional = true }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.8"
