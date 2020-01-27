@@ -5,17 +5,25 @@ use js_sys::{Promise, Uint8Array};
 use handshake::EphKeyPair;
 
 
-#[wasm_bindgen(raw_module = "src/js/sodium.js")]
+#[wasm_bindgen]
 extern "C" {
-    type libsodium_sumo;
+    #[wasm_bindgen(js_namespace = sodium)]
     fn ready() -> Promise;
+    #[wasm_bindgen(js_namespace = sodium)]
     fn crypto_sign_keypair() -> KeyPair;
+    #[wasm_bindgen(js_namespace = sodium)]
     fn randombytes_buf(len: usize) -> Uint8Array;
+    #[wasm_bindgen(js_namespace = sodium)]
     fn crypto_auth(msg: &[u8], key: &Uint8Array) -> Uint8Array;
+    #[wasm_bindgen(js_namespace = sodium)]
     fn crypto_auth_verify(mac: Uint8Array, msg: &[u8], key: &Uint8Array) -> bool;
+    #[wasm_bindgen(js_namespace = sodium)]
     fn crypto_box_keypair() -> EphKeyPair;
+    #[wasm_bindgen(js_namespace = sodium)]
     fn crypto_scalarmult(privateKey: Uint8Array, publicKey: Uint8Array) -> Uint8Array;
+    #[wasm_bindgen(js_namespace = sodium)]
     fn crypto_sign_ed25519_pk_to_curve25519(publicKey: Uint8Array) -> Uint8Array;
+    #[wasm_bindgen(js_namespace = sodium)]
     fn crypto_sign_ed25519_sk_to_curve25519(privateKey: Uint8Array) -> Uint8Array;
 }
 
