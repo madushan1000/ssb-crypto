@@ -25,7 +25,18 @@ extern "C" {
     fn crypto_sign_ed25519_pk_to_curve25519(publicKey: Uint8Array) -> Uint8Array;
     #[wasm_bindgen(js_namespace = sodium)]
     fn crypto_sign_ed25519_sk_to_curve25519(privateKey: Uint8Array) -> Uint8Array;
+    #[wasm_bindgen(js_namespace = sodium)]
+    fn sign_detached(m: Uint8Array, sk: Uint8Array) -> Uint8Array;
+    #[wasm_bindgen(js_namespace = sodium)]
+    fn verify_detached(sig: Uint8Array, m: Uint8Array, pk: Uint8Array) -> bool;
 }
+
+pub type PublicKey = [u8; 32];
+pub type SecretKey = [u8; 64];
+pub type Signature = [u8; 64];
+pub type AuthTag = [u8; 32];
+pub type Digest = [u8; 32];
+
 
 #[wasm_bindgen]
 pub struct KeyPair {
@@ -37,6 +48,7 @@ pub struct KeyPair {
 pub mod handshake;
 pub mod hash;
 pub mod utils;
+pub mod secretbox;
 
 pub async fn init() {
     wasm_bindgen_futures::JsFuture::from(ready()).await.unwrap();
@@ -85,7 +97,7 @@ impl NetworkKey {
 }
 
 pub struct NonceGen {
-    next_nonce: [u8; 24],
+    next_nonce: secretbox::Nonce,
 }
 
 impl NonceGen {

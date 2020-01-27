@@ -8,6 +8,10 @@ pub struct HandshakeKeys {
     pub write_noncegen: NonceGen,
 }
 
+pub type SharedSecret = [u8; 32];
+pub type EphPublicKey = [u8; 32];
+pub type EphSecretKey = [u8; 32];
+
 #[wasm_bindgen]
 pub struct  EphKeyPair {
     publicKey: [u8; 32],
