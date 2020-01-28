@@ -54,9 +54,9 @@ pub async fn init() {
     wasm_bindgen_futures::JsFuture::from(ready()).await.unwrap();
 }
 
-pub fn generate_longterm_keypair() -> ([u8; 32], [u8; 64]) {
+pub fn generate_longterm_keypair() -> (PublicKey, SecretKey) {
     let keypair = crypto_sign_keypair();
-    (keypair.publicKey, keypair.privateKey)
+    (Key(keypair.publicKey), SecretKey(keypair.privateKey))
 }
 
 pub fn sign_detached(m: &[u8], sk: &SecretKey) -> Signature {
@@ -219,11 +219,11 @@ mod tests {
         let (_, s_sk) = generate_longterm_keypair();
 
         assert!(derive_shared_secret(&s_eph_sk, &c_eph_pk).is_some());
-        let zero_eph_pk = [0u8; 32];
+        let zero_eph_pk = Key([0u8; 32]);
         assert!(derive_shared_secret(&s_eph_sk, &zero_eph_pk).is_none());
 
         assert!(derive_shared_secret_pk(&s_eph_sk, &c_pk).is_some());
-        let zero_pk = &[0; size_of::<[u8; 32]>()];
+        let zero_pk = &Key([0; size_of::<EphPublicKey>()]);
         assert!(derive_shared_secret_pk(&s_eph_sk, &zero_pk).is_none());
 
         assert!(derive_shared_secret_sk(&s_sk, &c_eph_pk).is_some());
