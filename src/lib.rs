@@ -2,7 +2,9 @@ use wasm_bindgen::prelude::*;
 use core::mem::size_of;
 use ::std::convert::{TryInto};
 use js_sys::{Promise, Uint8Array};
-use handshake::EphKeyPair;
+use handshake::{EphKeyPair, Key};
+use std::ops::{Index, Range, RangeTo, RangeFrom, RangeFull};
+
 
 
 #[wasm_bindgen]
@@ -25,16 +27,14 @@ extern "C" {
     fn crypto_sign_ed25519_pk_to_curve25519(publicKey: Uint8Array) -> Uint8Array;
     #[wasm_bindgen(js_namespace = sodium)]
     fn crypto_sign_ed25519_sk_to_curve25519(privateKey: Uint8Array) -> Uint8Array;
-    #[wasm_bindgen(js_namespace = sodium)]
-    fn sign_detached(m: Uint8Array, sk: Uint8Array) -> Uint8Array;
-    #[wasm_bindgen(js_namespace = sodium)]
-    fn verify_detached(sig: Uint8Array, m: Uint8Array, pk: Uint8Array) -> bool;
 }
 
-pub type PublicKey = [u8; 32];
-pub type SecretKey = [u8; 64];
-pub type Signature = [u8; 64];
-pub type AuthTag = [u8; 32];
+pub type PublicKey = handshake::Key;
+pub type AuthTag = handshake::Key;
+pub type Signature = SecretKey;
+
+#[derive(Copy, Clone)]
+pub struct SecretKey(pub [u8; 64]);
 pub type Digest = [u8; 32];
 
 
@@ -59,6 +59,42 @@ pub fn generate_longterm_keypair() -> ([u8; 32], [u8; 64]) {
     (keypair.publicKey, keypair.privateKey)
 }
 
+pub fn sign_detached(m: &[u8], sk: &SecretKey) -> Signature {
+    SecretKey([0u8; 64])
+}
+
+pub fn verify_detached(sig: &Signature, m: &[u8], pk: &PublicKey) -> bool {
+    true
+}
+
+impl Index<Range<usize>> for SecretKey {
+    type Output = [u8];
+    fn index(&self, _index: Range<usize>) -> &[u8] {
+        self.0.index(_index)
+    }
+}
+
+impl Index<RangeTo<usize>> for SecretKey {
+    type Output = [u8];
+    fn index(&self, _index: RangeTo<usize>) -> &[u8] {
+        self.0.index(_index)
+    }
+}
+
+impl Index<RangeFrom<usize>> for SecretKey {
+    type Output = [u8];
+    fn index(&self, _index: RangeFrom<usize>) -> &[u8] {
+        self.0.index(_index)
+    }
+}
+
+impl Index<RangeFull> for SecretKey {
+    type Output = [u8];
+    fn index(&self, _index: RangeFull) -> &[u8] {
+        self.0.index(_index)
+    }
+}
+
 /// 32-byte network key, known by client and server. Usually `NetworkKey::SSB_MAIN_NET`
 #[derive(Clone, Debug, PartialEq)]
 pub struct NetworkKey([u8; 32]);
@@ -81,14 +117,14 @@ impl NetworkKey {
         Some(NetworkKey(b.try_into().expect("incorrect length")))
     }
 
-    pub fn authenticate(&self, data: &[u8]) -> [u8; 32] {
+    pub fn authenticate(&self, data: &[u8]) -> AuthTag {
         let mut buf = [0u8; 32];
         crypto_auth(data, &Uint8Array::from(&self.0 as &[u8])).copy_to(&mut buf);
-        buf
+        Key(buf)
     }
 
-    pub fn verify(&self, tag: [u8; 32], data: &[u8]) -> bool {
-        crypto_auth_verify(Uint8Array::from(&tag as &[u8]), data, &Uint8Array::from(&self.0 as &[u8]))
+    pub fn verify(&self, tag: &AuthTag, data: &[u8]) -> bool {
+        crypto_auth_verify(Uint8Array::from(&tag.0 as &[u8]), data, &Uint8Array::from(&self.0 as &[u8]))
     }
 
     pub const fn size() -> usize {
@@ -101,12 +137,13 @@ pub struct NonceGen {
 }
 
 impl NonceGen {
-    pub fn new(pk: &[u8; 32], net_id: &NetworkKey) -> NonceGen {
+    pub fn new(pk: &handshake::EphPublicKey, net_id: &NetworkKey) -> NonceGen {
         let mut hmac = [0u8; 32];
         crypto_auth(&pk[..], &Uint8Array::from(&net_id.0 as &[u8])).copy_to(&mut hmac);
-        const N: usize = size_of::<[u8; 24]>();
+
+        const N: usize = size_of::<secretbox::Nonce>();
         NonceGen {
-            next_nonce: hmac[..N].try_into().unwrap(),
+            next_nonce: secretbox::Nonce(hmac[..N].try_into().unwrap()),
         }
     }
 
@@ -126,15 +163,15 @@ impl NonceGen {
     ///                      0, 0, 0, 0, 0, 0, 0, 0,
     ///                      0, 0, 0, 0, 0, 1, 0, 0]);
     /// ```
-    pub fn with_starting_nonce(nonce: [u8; 24]) -> NonceGen {
+    pub fn with_starting_nonce(nonce: secretbox::Nonce) -> NonceGen {
         NonceGen { next_nonce: nonce }
     }
 
-    pub fn next(&mut self) -> [u8; 24] {
+    pub fn next(&mut self) -> secretbox::Nonce {
         let n = self.next_nonce;
 
         // Increment the nonce as a big-endian u24
-        for byte in self.next_nonce.iter_mut().rev() {
+        for byte in self.next_nonce.0.iter_mut().rev() {
             *byte = byte.wrapping_add(1);
             if *byte != 0 {
                 break;
@@ -143,6 +180,15 @@ impl NonceGen {
         n
     }
 }
+
+impl SecretKey {
+    pub fn from_slice(bs: &[u8]) -> Option<SecretKey> {
+        let mut n = SecretKey([0u8; 64]);
+        n.0.copy_from_slice(bs);
+        Some(n)
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
