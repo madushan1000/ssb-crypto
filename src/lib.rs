@@ -14,6 +14,10 @@ extern "C" {
     #[wasm_bindgen(js_namespace = sodium)]
     fn crypto_sign_keypair() -> KeyPair;
     #[wasm_bindgen(js_namespace = sodium)]
+    fn crypto_sign_detached(m: Uint8Array, key: Uint8Array) -> Uint8Array;
+    #[wasm_bindgen(js_namespace = sodium)]
+    fn crypto_sign_verify_detached(sig: Uint8Array, m: Uint8Array, pk: Uint8Array) -> bool;
+    #[wasm_bindgen(js_namespace = sodium)]
     fn randombytes_buf(len: usize) -> Uint8Array;
     #[wasm_bindgen(js_namespace = sodium)]
     fn crypto_auth(msg: &[u8], key: &Uint8Array) -> Uint8Array;
@@ -60,11 +64,19 @@ pub fn generate_longterm_keypair() -> (PublicKey, SecretKey) {
 }
 
 pub fn sign_detached(m: &[u8], sk: &SecretKey) -> Signature {
-    SecretKey([0u8; 64])
+    let mut buf = [0u8; 64];
+    crypto_sign_detached(Uint8Array::from(m), Uint8Array::from(&sk[..])).copy_to(&mut buf);
+    SecretKey(buf)
 }
 
 pub fn verify_detached(sig: &Signature, m: &[u8], pk: &PublicKey) -> bool {
-    true
+    crypto_sign_verify_detached(Uint8Array::from(&sig[..]), Uint8Array::from(m), Uint8Array::from(&pk[..]))
+}
+
+pub fn randombytes(n: usize) -> Vec<u8> {
+    let mut buf: Vec<u8> = vec!{};
+    randombytes_buf(n).copy_to(&mut buf[..]);
+    buf
 }
 
 impl Index<Range<usize>> for SecretKey {
@@ -106,7 +118,7 @@ impl NetworkKey {
     ]);
 
     pub fn random() -> NetworkKey {
-        let mut buf = randombytes_buf(NetworkKey::size());
+        let buf = randombytes_buf(NetworkKey::size());
         NetworkKey::from_slice(&buf.to_vec()).unwrap()
     }
 
