@@ -16,15 +16,21 @@ pub type EphPublicKey = Key;
 pub type EphSecretKey = Key;
 pub type SharedSecret = Key;
 
-#[wasm_bindgen]
-pub struct  EphKeyPair {
-    publicKey: [u8; 32],
-    privateKey: [u8; 32],
-    keyType: String,
+#[derive(Serialize, Deserialize)]
+pub struct EphKeyPair {
+    pub publicKey: BTreeMap<usize, u8>,
+    pub privateKey: BTreeMap<usize, u8>
 }
+
 pub fn generate_ephemeral_keypair() -> (EphPublicKey, EphSecretKey) {
-    let ephkeypair = crypto_box_keypair();
-    (Key(ephkeypair.publicKey),Key(ephkeypair.privateKey))
+    let mut public_key = [0u8; 32];
+    let mut private_key = [0u8; 32];
+
+    let keypair:KeyPair = crypto_box_keypair().into_serde().unwrap();
+    keypair.publicKey.iter().for_each(|(k, v)| public_key[*k] = *v);
+    keypair.privateKey.iter().for_each(|(k, v)| private_key[*k] = *v);
+    
+    (Key(public_key), Key(private_key))
 }
 
 pub fn derive_shared_secret(

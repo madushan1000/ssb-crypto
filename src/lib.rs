@@ -2,17 +2,17 @@ use wasm_bindgen::prelude::*;
 use core::mem::size_of;
 use ::std::convert::{TryInto};
 use js_sys::{Promise, Uint8Array};
-use handshake::{EphKeyPair, Key};
+use handshake::{Key};
 use std::ops::{Index, Range, RangeTo, RangeFrom, RangeFull};
-
-
+use std::collections::BTreeMap;
+use serde::{Deserialize, Serialize};
 
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = sodium)]
     fn ready() -> Promise;
     #[wasm_bindgen(js_namespace = sodium)]
-    fn crypto_sign_keypair() -> KeyPair;
+    pub fn crypto_sign_keypair() -> JsValue;
     #[wasm_bindgen(js_namespace = sodium)]
     fn crypto_sign_detached(m: Uint8Array, key: Uint8Array) -> Uint8Array;
     #[wasm_bindgen(js_namespace = sodium)]
@@ -24,13 +24,19 @@ extern "C" {
     #[wasm_bindgen(js_namespace = sodium)]
     fn crypto_auth_verify(mac: Uint8Array, msg: &[u8], key: &Uint8Array) -> bool;
     #[wasm_bindgen(js_namespace = sodium)]
-    fn crypto_box_keypair() -> EphKeyPair;
+    fn crypto_box_keypair() -> JsValue;
     #[wasm_bindgen(js_namespace = sodium)]
     fn crypto_scalarmult(privateKey: Uint8Array, publicKey: Uint8Array) -> Uint8Array;
     #[wasm_bindgen(js_namespace = sodium)]
     fn crypto_sign_ed25519_pk_to_curve25519(publicKey: Uint8Array) -> Uint8Array;
     #[wasm_bindgen(js_namespace = sodium)]
     fn crypto_sign_ed25519_sk_to_curve25519(privateKey: Uint8Array) -> Uint8Array;
+    #[wasm_bindgen(js_namespace = sodium)]
+    fn crypto_hash_sha256(m: Uint8Array) -> Uint8Array;
+    #[wasm_bindgen(js_namespace = sodium)]
+    fn crypto_secretbox_easy(message: Uint8Array, nonce: Uint8Array, secretKey: Uint8Array) -> Uint8Array;
+    #[wasm_bindgen(js_namespace = sodium)]
+    fn crypto_secretbox_open_easy(cypherText: Uint8Array, nonce: Uint8Array, secretKey: Uint8Array) -> Uint8Array;
 }
 
 pub type PublicKey = handshake::Key;
@@ -42,11 +48,10 @@ pub struct SecretKey(pub [u8; 64]);
 pub type Digest = [u8; 32];
 
 
-#[wasm_bindgen]
+#[derive(Serialize, Deserialize)]
 pub struct KeyPair {
-    publicKey: [u8; 32],
-    privateKey: [u8; 64],
-    keyType: String
+    pub publicKey: BTreeMap<usize, u8>,
+    pub privateKey: BTreeMap<usize, u8>
 }
 
 pub mod handshake;
@@ -59,8 +64,15 @@ pub async fn init() {
 }
 
 pub fn generate_longterm_keypair() -> (PublicKey, SecretKey) {
-    let keypair = crypto_sign_keypair();
-    (Key(keypair.publicKey), SecretKey(keypair.privateKey))
+
+    let mut public_key = [0u8; 32];
+    let mut private_key = [0u8; 64];
+
+    let keypair:KeyPair = crypto_sign_keypair().into_serde().unwrap();
+    keypair.publicKey.iter().for_each(|(k, v)| public_key[*k] = *v);
+    keypair.privateKey.iter().for_each(|(k, v)| private_key[*k] = *v);
+    
+    (Key(public_key), SecretKey(private_key))
 }
 
 pub fn sign_detached(m: &[u8], sk: &SecretKey) -> Signature {
@@ -74,7 +86,8 @@ pub fn verify_detached(sig: &Signature, m: &[u8], pk: &PublicKey) -> bool {
 }
 
 pub fn randombytes(n: usize) -> Vec<u8> {
-    let mut buf: Vec<u8> = vec!{};
+    let mut buf: Vec<u8> = Vec::new();
+    buf.resize(n, 0);
     randombytes_buf(n).copy_to(&mut buf[..]);
     buf
 }
